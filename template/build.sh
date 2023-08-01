@@ -4,8 +4,7 @@ PHP_VERSION=''
 PUSH=''
 CONFIG=''
 TAG=''
-BUILDER='litespeedtech'
-REPO='openlitespeed'
+DOCKER_REPO=''
 EPACE='        '
 
 echow(){
@@ -34,16 +33,17 @@ build_image(){
         help_message
     else
         echo "${1} ${2}"
-        docker build . --tag ${BUILDER}/${REPO}:${1}-${2} --build-arg OLS_VERSION=${1} --build-arg PHP_VERSION=${2}
+        docker build . --tag ${DOCKER_REPO}:${1}-${2} --build-arg OLS_VERSION=${1} --build-arg PHP_VERSION=${2}
     fi    
 }
 
 test_image(){
-    ID=$(docker run -d ${BUILDER}/${REPO}:${1}-${2})
+    ID=$(docker run -d ${DOCKER_REPO}:${1}-${2})
     docker exec -i ${ID} su -c 'mkdir -p /var/www/vhosts/localhost/html/ \
     && echo "<?php phpinfo();" > /var/www/vhosts/localhost/html/index.php \
     && /usr/local/lsws/bin/lswsctrl restart'
     sleep 5
+    docker logs $ID
     HTTP=$(docker exec -i ${ID} curl -s -o /dev/null -Ik -w "%{http_code}" http://localhost)
     HTTPS=$(docker exec -i ${ID} curl -s -o /dev/null -Ik -w "%{http_code}" https://localhost)
     docker kill ${ID}
@@ -62,10 +62,10 @@ push_image(){
         if [ -f ~/.docker/litespeedtech/config.json ]; then
             CONFIG=$(echo --config ~/.docker/litespeedtech)
         fi
-        docker ${CONFIG} push ${BUILDER}/${REPO}:${1}-${2}
+        docker ${CONFIG} push ${DOCKER_REPO}:${1}-${2}
         if [ ! -z "${TAG}" ]; then
-            docker tag ${BUILDER}/${REPO}:${1}-${2} ${BUILDER}/${REPO}:${3}
-            docker ${CONFIG} push ${BUILDER}/${REPO}:${3}
+            docker tag ${DOCKER_REPO}:${1}-${2} ${DOCKER_REPO}:${3}
+            docker ${CONFIG} push ${DOCKER_REPO}:${3}
         fi
     else
         echo 'Skip Push.'    
@@ -96,6 +96,8 @@ while [ ! -z "${1}" ]; do
             TAG="${1}"
             ;;       
         --push ) shift
+            check_input "${1}"
+            DOCKER_REPO="${1}"
             PUSH=true
             ;;            
         *) 
